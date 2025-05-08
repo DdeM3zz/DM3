@@ -365,37 +365,37 @@ local function createUI()
 
     local title = Instance.new("TextLabel", main)
     title.Size = UDim2.new(1, 0, 0, 30)
-    title.Text = '<font color="rgb(255,255,255)">BABFT </font><font color="rgb(255,255,255)">DM3</font>'
+    title.Text = '<font color="rgb(255,255,255)">⚓BABFT </font><font color="rgb(255,255,255)">DM3</font>'
     title.TextColor3 = Color3.new(1,1,1)
     title.Font = Enum.Font.GothamBold
     title.TextSize = 18
     title.RichText = true
     title.BackgroundTransparency = 1
 
-    AutoFarmButton = makeButton("AutoFarm: OFF", main, function()
+    AutoFarmButton = makeButton("🪙AutoFarm: OFF", main, function()
         AutoFarmSettings.Enabled = not AutoFarmSettings.Enabled
-        AutoFarmButton.Text = "AutoFarm: " .. (AutoFarmSettings.Enabled and "ON" or "OFF")
+        AutoFarmButton.Text = "🪙AutoFarm: " .. (AutoFarmSettings.Enabled and "ON" or "OFF")
         if AutoFarmSettings.Enabled then
             StartAutoFarmLoop()
         end
     end)
 
-    SilentButton = makeButton("Silent Mode: OFF", main, function()
+    SilentButton = makeButton("🥷Silent Mode: OFF", main, function()
         AutoFarmSettings.Silent = not AutoFarmSettings.Silent
-        SilentButton.Text = "Silent Mode: " .. (AutoFarmSettings.Silent and "ON" or "OFF")
+        SilentButton.Text = "🥷Silent Mode: " .. (AutoFarmSettings.Silent and "ON" or "OFF")
     end)
 
-    FlyButton = makeButton("Fly: OFF", main, function()
+    FlyButton = makeButton("🚀Fly: OFF", main, function()
         FlyEnabled = not FlyEnabled
-        FlyButton.Text = "Fly: " .. (FlyEnabled and "ON" or "OFF")
+        FlyButton.Text = "🚀Fly: " .. (FlyEnabled and "ON" or "OFF")
         if FlyEnabled then
             StartFlying()
         end
     end)
 
-    NoclipButton = makeButton("Noclip: OFF", main, function()
+    NoclipButton = makeButton("🫥Noclip: OFF", main, function()
         NoclipEnabled = not NoclipEnabled
-        NoclipButton.Text = "Noclip: " .. (NoclipEnabled and "ON" or "OFF")
+        NoclipButton.Text = "🫥Noclip: " .. (NoclipEnabled and "ON" or "OFF")
         if NoclipEnabled then
             StartNoclip()
         end
