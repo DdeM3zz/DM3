@@ -372,17 +372,17 @@ local function createUI()
     title.RichText = true
     title.BackgroundTransparency = 1
 
-    AutoFarmButton = makeButton("🪙AutoFarm: OFF", main, function()
+    AutoFarmButton = makeButton("⭐AutoFarm: OFF", main, function()
         AutoFarmSettings.Enabled = not AutoFarmSettings.Enabled
-        AutoFarmButton.Text = "🪙AutoFarm: " .. (AutoFarmSettings.Enabled and "ON" or "OFF")
+        AutoFarmButton.Text = "⭐AutoFarm: " .. (AutoFarmSettings.Enabled and "ON" or "OFF")
         if AutoFarmSettings.Enabled then
             StartAutoFarmLoop()
         end
     end)
 
-    SilentButton = makeButton("🥷Silent Mode: OFF", main, function()
+    SilentButton = makeButton("👀Silent Mode: OFF", main, function()
         AutoFarmSettings.Silent = not AutoFarmSettings.Silent
-        SilentButton.Text = "🥷Silent Mode: " .. (AutoFarmSettings.Silent and "ON" or "OFF")
+        SilentButton.Text = "👀Silent Mode: " .. (AutoFarmSettings.Silent and "ON" or "OFF")
     end)
 
     FlyButton = makeButton("🚀Fly: OFF", main, function()
@@ -393,9 +393,9 @@ local function createUI()
         end
     end)
 
-    NoclipButton = makeButton("🫥Noclip: OFF", main, function()
+    NoclipButton = makeButton("😶‍🌫️Noclip: OFF", main, function()
         NoclipEnabled = not NoclipEnabled
-        NoclipButton.Text = "🫥Noclip: " .. (NoclipEnabled and "ON" or "OFF")
+        NoclipButton.Text = "😶‍🌫️Noclip: " .. (NoclipEnabled and "ON" or "OFF")
         if NoclipEnabled then
             StartNoclip()
         end
