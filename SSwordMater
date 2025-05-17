@@ -1,0 +1,68 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Создаём RemoteEvent для связи
+local CreateSwordsEvent = Instance.new("RemoteEvent")
+CreateSwordsEvent.Name = "CreateSwordsEvent"
+CreateSwordsEvent.Parent = ReplicatedStorage
+
+-- Настройки мечей
+local swordsData = {
+	{ meshId = "rbxassetid://10444936975", textureId = "rbxassetid://10444937019", offset = Vector3.new(-1.5, 0, 0), scale = Vector3.new(0.15, 0.15, 0.15) },
+	{ meshId = "rbxassetid://10455858461", textureId = "rbxassetid://10455858590", offset = Vector3.new(1.5, 0, 0), scale = Vector3.new(0.15, 0.15, 0.15) },
+	{ meshId = "rbxassetid://10467249177", textureId = "rbxassetid://10467249225", offset = Vector3.new(0, 0.8, 0), scale = Vector3.new(0.15, 0.15, 0.15) }
+}
+
+-- Создание меча
+local function createSword(player, data)
+	local character = player.Character
+	if not character then return end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	local part = Instance.new("Part")
+	part.Name = "SwordPart_" .. player.Name .. "_" .. #playerSwords[player]
+	part.Size = Vector3.new(0.2, 0.2, 0.2)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Transparency = 0
+	part.Parent = workspace
+
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.FileMesh
+	mesh.MeshId = data.meshId
+	mesh.TextureId = data.textureId
+	mesh.Scale = data.scale
+	mesh.Parent = part
+
+	return { part = part, offset = data.offset, hrp = hrp }
+end
+
+-- Хранилище мечей для каждого игрока
+local playerSwords = {}
+
+-- Создание мечей для игрока
+CreateSwordsEvent.OnServerEvent:Connect(function(player)
+	if playerSwords[player] then return end -- Уже есть мечи
+
+	local swordsList = {}
+	for i, data in pairs(swordsData) do
+		local sword = createSword(player, data)
+		if sword then
+			table.insert(swordsList, sword)
+		end
+	end
+	playerSwords[player] = swordsList
+end)
+
+-- Удаление мечей при выходе игрока
+Players.PlayerRemoving:Connect(function(player)
+	if playerSwords[player] then
+		for _, sword in pairs(playerSwords[player]) do
+			if sword.part then
+				sword.part:Destroy()
+			end
+		end
+		playerSwords[player] = nil
+	end
+end)
