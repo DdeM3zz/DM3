@@ -7,7 +7,7 @@ local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local hrp = character:WaitForChild("HumanoidRootPart")
 
 -- Загружаем серверный скрипт с GitHub
-local serverScriptUrl = "YOUR_GITHUB_RAW_URL"
+local serverScriptUrl = "https://raw.githubusercontent.com/DdeM3zz/DM3/refs/heads/main/SSwordMater"
 local success, err = pcall(function()
 	loadstring(game:HttpGet(serverScriptUrl))()
 end)
