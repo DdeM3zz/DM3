@@ -1,18 +1,40 @@
--- Клиентская часть (вставляется в экзекутор, например Xeno)
+-- Клиентская часть (вставляется в Swift SS)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local StarterGui = game:GetService("StarterGui")
 
--- Проверяем или создаём RemoteEvent
-local remoteEvent = ReplicatedStorage:FindFirstChild("AddParticleEffect")
-if not remoteEvent then
-    remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "AddParticleEffect"
-    remoteEvent.Parent = ReplicatedStorage
+-- Уведомление
+local function showNotification(message, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "FE Test",
+            Text = message,
+            Duration = duration or 2
+        })
+    end)
 end
 
--- Функция для отправки запроса на добавление эффекта
-local function addFireParticles()
+-- Поиск или создание RemoteEvent
+local remoteEvent = nil
+for _, child in pairs(ReplicatedStorage:GetChildren()) do
+    if child:IsA("RemoteEvent") then
+        remoteEvent = child
+        showNotification("Найден RemoteEvent: " .. child.Name)
+        break
+    end
+end
+
+if not remoteEvent then
+    remoteEvent = Instance.new("RemoteEvent")
+    remoteEvent.Name = "FEParticleTest"
+    remoteEvent.Parent = ReplicatedStorage
+    showNotification("Создан новый RemoteEvent: FEParticleTest")
+end
+
+-- Функция для запуска теста
+local function runTest()
+    showNotification("Запуск теста FE...")
     remoteEvent:FireServer("AddFireEffect", {
         Texture = "rbxassetid://243098098", -- Текстура огня
         Size = NumberSequence.new(1, 0),
@@ -25,20 +47,19 @@ local function addFireParticles()
     })
 end
 
--- Вызываем добавление частиц
-addFireParticles()
-
--- Автоматически для новых игроков (опционально)
-game:GetService("Players").PlayerAdded:Connect(function(player)
-    if player == LocalPlayer then
-        addFireParticles()
+-- Запуск теста при нажатии клавиши (например, T)
+local UserInputService = game:GetService("UserInputService")
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.T then
+        runTest()
     end
 end)
 
 -- Серверная часть (для полноты, обычно в ServerScriptService)
 if game:GetService("RunService"):IsServer() then
     local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
-    remoteEvent.Name = "AddParticleEffect"
+    remoteEvent.Name = "FEParticleTest"
 
     remoteEvent.OnServerEvent:Connect(function(player, action, particleData)
         if action == "AddFireEffect" then
@@ -47,13 +68,13 @@ if game:GetService("RunService"):IsServer() then
                 if char then
                     local hrp = char:FindFirstChild("HumanoidRootPart")
                     if hrp then
-                        -- Удаляем старые эффекты, чтобы избежать дублирования
+                        -- Удаляем старые эффекты
                         for _, child in pairs(hrp:GetChildren()) do
                             if child:IsA("ParticleEmitter") then
                                 child:Destroy()
                             end
                         end
-                        -- Создаём новый эффект
+                        -- Добавляем новый эффект
                         local particleEmitter = Instance.new("ParticleEmitter")
                         particleEmitter.Texture = particleData.Texture
                         particleEmitter.Size = particleData.Size
