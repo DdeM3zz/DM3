@@ -1,13 +1,12 @@
 -- Клиентская часть (вставляется в Swift SS)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
-local Workspace = game:GetService("Workspace")
 
 -- Уведомление
 local function showNotification(message, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Duck Drop",
+            Title = "Test",
             Text = message,
             Duration = duration or 2
         })
@@ -26,20 +25,16 @@ end
 
 if not remoteEvent then
     remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "DuckDropEvent"
+    remoteEvent.Name = "TestEvent"
     remoteEvent.Parent = ReplicatedStorage
-    showNotification("Создан новый RemoteEvent: DuckDropEvent")
+    showNotification("Создан новый RemoteEvent: TestEvent")
 end
 
--- Функция для запуска падения уток
-local function dropDucksFromSky()
-    showNotification("Запуск падения уток с неба...")
+-- Функция для теста
+local function runTest()
+    showNotification("Запуск теста...")
     local success, errorMsg = pcall(function()
-        remoteEvent:FireServer("DropDucks", {
-            MeshId = "rbxassetid://14116572762", -- MeshId утки
-            TextureId = "rbxassetid://14116572804", -- Текстура утки
-            DuckCount = 5 -- Количество уток
-        })
+        remoteEvent:FireServer("TestAction")
     end)
     if success then
         showNotification("Запрос отправлен на сервер!")
@@ -53,42 +48,20 @@ local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.KeyCode == Enum.KeyCode.T then
-        dropDucksFromSky()
+        runTest()
     end
 end)
 
--- Серверная часть (для полноты, обычно в ServerScriptService)
+-- Серверная часть
 if game:GetService("RunService"):IsServer() then
     local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
-    remoteEvent.Name = "DuckDropEvent"
+    remoteEvent.Name = "TestEvent"
 
-    remoteEvent.OnServerEvent:Connect(function(player, action, data)
-        if action == "DropDucks" then
+    remoteEvent.OnServerEvent:Connect(function(player, action)
+        if action == "TestAction" then
             local success, errorMsg = pcall(function()
-                for i = 1, data.DuckCount do
-                    local duck = Instance.new("Part")
-                    duck.Size = Vector3.new(1, 1, 1)
-                    duck.Position = Vector3.new(
-                        math.random(-50, 50),
-                        100, -- Высота
-                        math.random(-50, 50)
-                    )
-                    duck.Anchored = false
-                    duck.CanCollide = true
-
-                    local mesh = Instance.new("SpecialMesh")
-                    mesh.MeshId = data.MeshId
-                    mesh.TextureId = data.TextureId
-                    mesh.Scale = Vector3.new(1, 1, 1)
-                    mesh.Parent = duck
-
-                    duck.Parent = Workspace
-
-                    -- Удаляем утку через 30 секунд
-                    task.delay(30, function()
-                        duck:Destroy()
-                    end)
-                end
+                print("Сервер получил запрос от: " .. player.Name)
+                showNotification("Сервер работает!", 5)
             end)
             if not success then
                 warn("Ошибка на сервере: " .. tostring(errorMsg))
