@@ -1,167 +1,228 @@
+-- Клиентская часть (вставляется в экзекутор, например Xeno)
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
-local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
 -- Настройки
-local recording = {}
-local isRewinding = false
 local maxRecordTime = 5
 local recordInterval = 0.1
 local rewindSpeedMultiplier = 2
 local minSpeed = 0.1
 local maxSpeed = 10
 
-local character, humanoid, hrp
-
 -- Уведомление
 local function showBadge(message, duration)
-	pcall(function()
-		StarterGui:SetCore("SendNotification", {
-			Title = "⏳ Time Control",
-			Text = message,
-			Duration = duration or 2
-		})
-	end)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "⏳ Time Control",
+            Text = message,
+            Duration = duration or 2
+        })
+    end)
 end
 
--- Проверка земли (raycast)
-local function adjustToGround(cframe)
-	local origin = cframe.Position + Vector3.new(0, 2, 0)
-	local direction = Vector3.new(0, -10, 0)
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = {character}
-	params.FilterType = Enum.RaycastFilterType.Blacklist
-
-	local result = Workspace:Raycast(origin, direction, params)
-	if result then
-		local y = math.max(cframe.Position.Y, result.Position.Y + 2)
-		return CFrame.new(Vector3.new(cframe.Position.X, y, cframe.Position.Z)) * cframe.Rotation
-	end
-
-	return cframe
+-- Поиск любого RemoteEvent в ReplicatedStorage
+local remoteEvent = nil
+for _, child in pairs(ReplicatedStorage:GetChildren()) do
+    if child:IsA("RemoteEvent") then
+        remoteEvent = child
+        break
+    end
 end
 
--- Запись позиции
-local function recordLoop()
-	while true do
-		if character and hrp and humanoid and humanoid.Health > 0 and not isRewinding then
-			if #recording >= maxRecordTime / recordInterval then
-				table.remove(recording, 1)
-			end
-
-			table.insert(recording, {
-				cframe = hrp.CFrame,
-			})
-		end
-		task.wait(recordInterval)
-	end
+if not remoteEvent then
+    -- Если RemoteEvent не найден, создаём свой
+    remoteEvent = Instance.new("RemoteEvent")
+    remoteEvent.Name = "TimeRewindEvent"
+    remoteEvent.Parent = ReplicatedStorage
 end
 
--- Перемотка назад
+-- Запуск перемотки
 local function startRewind()
-	if isRewinding or not humanoid or humanoid.Health <= 0 then return end
-	if #recording < 2 then return end
-
-	isRewinding = true
-	showBadge("⏪ Перемотка...")
-
-	for _, part in character:GetDescendants() do
-		if part:IsA("BasePart") then
-			part.Anchored = true
-		end
-	end
-
-	for _, anim in humanoid:GetPlayingAnimationTracks() do
-		anim:Stop()
-	end
-
-	task.spawn(function()
-		while isRewinding and #recording > 1 do
-			local state1 = table.remove(recording, #recording)
-			local state2 = recording[#recording]
-
-			local startCF = adjustToGround(state1.cframe)
-			local endCF = adjustToGround(state2.cframe)
-			local duration = recordInterval / rewindSpeedMultiplier
-			local t = 0
-
-			while t < duration and isRewinding do
-				local alpha = t / duration
-				local currentCF = startCF:Lerp(endCF, alpha)
-				character:SetPrimaryPartCFrame(currentCF)
-				t += RunService.RenderStepped:Wait()
-			end
-
-			character:SetPrimaryPartCFrame(endCF)
-		end
-
-		stopRewind()
-	end)
+    remoteEvent:FireServer("StartRewind", {
+        maxRecordTime = maxRecordTime,
+        recordInterval = recordInterval,
+        rewindSpeedMultiplier = rewindSpeedMultiplier
+    })
 end
 
 -- Остановка перемотки
-function stopRewind()
-	if not isRewinding then return end
-	isRewinding = false
-	showBadge("✅ Перемотка завершена")
-
-	if character then
-		for _, part in character:GetDescendants() do
-			if part:IsA("BasePart") then
-				part.Anchored = false
-			end
-		end
-	end
+local function stopRewind()
+    remoteEvent:FireServer("StopRewind")
 end
 
--- Инициализация персонажа
-local function onCharacterAdded(char)
-	character = char
-	humanoid = char:WaitForChild("Humanoid")
-	hrp = char:WaitForChild("HumanoidRootPart")
-
-	if not character.PrimaryPart then
-		character.PrimaryPart = hrp
-	end
-
-	recording = {}
-	stopRewind()
-
-	humanoid.Died:Connect(function()
-		recording = {}
-		stopRewind()
-	end)
+-- Изменение скорости перемотки
+local function updateSpeed(increase)
+    if increase then
+        rewindSpeedMultiplier = math.clamp(rewindSpeedMultiplier + 0.1, minSpeed, maxSpeed)
+    else
+        rewindSpeedMultiplier = math.clamp(rewindSpeedMultiplier - 0.1, minSpeed, maxSpeed)
+    end
+    showBadge("Скорость: x" .. string.format("%.1f", rewindSpeedMultiplier))
+    remoteEvent:FireServer("UpdateSpeed", { rewindSpeedMultiplier = rewindSpeedMultiplier })
 end
-
-onCharacterAdded(player.Character or player.CharacterAdded:Wait())
-player.CharacterAdded:Connect(onCharacterAdded)
 
 -- Управление
 UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end
+    if processed then return end
 
-	if input.KeyCode == Enum.KeyCode.T then
-		startRewind()
+    if input.KeyCode == Enum.KeyCode.T then
+        startRewind()
 
-	elseif input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.KeypadPlus then
-		rewindSpeedMultiplier = math.clamp(rewindSpeedMultiplier + 0.1, minSpeed, maxSpeed)
-		showBadge("Скорость: x" .. string.format("%.1f", rewindSpeedMultiplier))
+    elseif input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.KeypadPlus then
+        updateSpeed(true)
 
-	elseif input.KeyCode == Enum.KeyCode.Minus or input.KeyCode == Enum.KeyCode.KeypadMinus then
-		rewindSpeedMultiplier = math.clamp(rewindSpeedMultiplier - 0.1, minSpeed, maxSpeed)
-		showBadge("Скорость: x" .. string.format("%.1f", rewindSpeedMultiplier))
-	end
+    elseif input.KeyCode == Enum.KeyCode.Minus or input.KeyCode == Enum.KeyCode.KeypadMinus then
+        updateSpeed(false)
+    end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.T then
-		stopRewind()
-	end
+    if input.KeyCode == Enum.KeyCode.T then
+        stopRewind()
+    end
 end)
 
--- Запуск записи
-task.spawn(recordLoop)
+-- Серверная часть (для полноты, обычно в ServerScriptService)
+if game:GetService("RunService"):IsServer() then
+    local recordings = {} -- Хранит записи для всех игроков
+    local isRewinding = false
+
+    -- Проверка земли (raycast)
+    local function adjustToGround(cframe, character)
+        local origin = cframe.Position + Vector3.new(0, 2, 0)
+        local direction = Vector3.new(0, -10, 0)
+        local params = RaycastParams.new()
+        params.FilterDescendantsInstances = {character}
+        params.FilterType = Enum.RaycastFilterType.Blacklist
+
+        local result = Workspace:Raycast(origin, direction, params)
+        if result then
+            local y = math.max(cframe.Position.Y, result.Position.Y + 2)
+            return CFrame.new(Vector3.new(cframe.Position.X, y, cframe.Position.Z)) * cframe.Rotation
+        end
+        return cframe
+    end
+
+    -- Запись позиций всех игроков
+    local function recordLoop(maxRecordTime, recordInterval)
+        while true do
+            if not isRewinding then
+                for _, player in pairs(Players:GetPlayers()) do
+                    local char = player.Character
+                    if char then
+                        local humanoid = char:FindFirstChild("Humanoid")
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        if humanoid and hrp and humanoid.Health > 0 then
+                            if not recordings[player] then
+                                recordings[player] = {}
+                            end
+                            local playerRecording = recordings[player]
+                            if #playerRecording >= maxRecordTime / recordInterval then
+                                table.remove(playerRecording, 1)
+                            end
+                            table.insert(playerRecording, {
+                                cframe = hrp.CFrame
+                            })
+                        end
+                    end
+                end
+            end
+            task.wait(recordInterval)
+        end
+    end
+
+    -- Обработка событий через RemoteEvent
+    remoteEvent.OnServerEvent:Connect(function(player, action, data)
+        if action == "StartRewind" then
+            if isRewinding then return end
+            isRewinding = true
+
+            -- Инициализация записи, если ещё не запущена
+            task.spawn(function()
+                recordLoop(data.maxRecordTime, data.recordInterval)
+            end)
+
+            -- Закрепляем персонажей
+            for _, p in pairs(Players:GetPlayers()) do
+                local char = p.Character
+                if char then
+                    for _, part in char:GetDescendants() do
+                        if part:IsA("BasePart") then
+                            part.Anchored = true
+                        end
+                    end
+                    local humanoid = char:FindFirstChild("Humanoid")
+                    if humanoid then
+                        for _, anim in humanoid:GetPlayingAnimationTracks() do
+                            anim:Stop()
+                        end
+                    end
+                end
+            end
+
+            -- Перемотка
+            task.spawn(function()
+                while isRewinding do
+                    local anyDataLeft = false
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if recordings[p] and #recordings[p] > 1 then
+                            anyDataLeft = true
+                            local playerRecording = recordings[p]
+                            local state1 = table.remove(playerRecording, #playerRecording)
+                            local state2 = playerRecording[#playerRecording]
+
+                            local char = p.Character
+                            if char then
+                                local hrp = char:FindFirstChild("HumanoidRootPart")
+                                if hrp then
+                                    local startCF = adjustToGround(state1.cframe, char)
+                                    local endCF = adjustToGround(state2.cframe, char)
+                                    local duration = data.recordInterval / data.rewindSpeedMultiplier
+                                    local t = 0
+
+                                    while t < duration and isRewinding do
+                                        local alpha = t / duration
+                                        local currentCF = startCF:Lerp(endCF, alpha)
+                                        char:SetPrimaryPartCFrame(currentCF)
+                                        t += RunService.RenderStepped:Wait()
+                                    end
+                                    char:SetPrimaryPartCFrame(endCF)
+                                end
+                            end
+                        end
+                    end
+                    if not anyDataLeft then break end
+                    task.wait()
+                end
+                isRewinding = false
+                for _, p in pairs(Players:GetPlayers()) do
+                    local char = p.Character
+                    if char then
+                        for _, part in char:GetDescendants() do
+                            if part:IsA("BasePart") then
+                                part.Anchored = false
+                            end
+                        end
+                    end
+                end
+            end)
+
+        elseif action == "StopRewind" then
+            isRewinding = false
+
+        elseif action == "UpdateSpeed" then
+            rewindSpeedMultiplier = data.rewindSpeedMultiplier
+        end
+    end)
+
+    -- Очистка записей при выходе игрока
+    Players.PlayerRemoving:Connect(function(player)
+        recordings[player] = nil
+    end)
+end
