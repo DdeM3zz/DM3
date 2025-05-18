@@ -1,10 +1,8 @@
--- Клиентская часть (вставляется в Swift SS)
+-- Клиентская часть (для Swift SS)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
 
--- Уведомление
 local function showNotification(message, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
@@ -15,7 +13,6 @@ local function showNotification(message, duration)
     end)
 end
 
--- Поиск или создание RemoteEvent
 local remoteEvent = nil
 for _, child in pairs(ReplicatedStorage:GetChildren()) do
     if child:IsA("RemoteEvent") then
@@ -27,27 +24,23 @@ end
 
 if not remoteEvent then
     remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "FEParticleTest"
+    remoteEvent.Name = "FEColorTest"
     remoteEvent.Parent = ReplicatedStorage
-    showNotification("Создан новый RemoteEvent: FEParticleTest")
+    showNotification("Создан новый RemoteEvent: FEColorTest")
 end
 
--- Функция для запуска теста
 local function runTest()
     showNotification("Запуск теста FE...")
-    remoteEvent:FireServer("AddFireEffect", {
-        Texture = "rbxassetid://243098098", -- Текстура огня
-        Size = NumberSequence.new(1, 0),
-        Transparency = NumberSequence.new(0, 1),
-        Lifetime = NumberRange.new(0.5, 1),
-        Rate = 50,
-        Speed = NumberRange.new(5, 10),
-        SpreadAngle = Vector2.new(-30, 30),
-        Color = ColorSequence.new(Color3.fromRGB(255, 147, 41), Color3.fromRGB(255, 0, 0))
-    })
+    local success, errorMsg = pcall(function()
+        remoteEvent:FireServer("ChangeColor", Color3.fromRGB(255, 0, 0))
+    end)
+    if success then
+        showNotification("Запрос отправлен на сервер!")
+    else
+        showNotification("Ошибка отправки: " .. tostring(errorMsg))
+    end
 end
 
--- Запуск теста при нажатии клавиши (например, T)
 local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
@@ -55,39 +48,3 @@ UserInputService.InputBegan:Connect(function(input, processed)
         runTest()
     end
 end)
-
--- Серверная часть (для полноты, обычно в ServerScriptService)
-if game:GetService("RunService"):IsServer() then
-    local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
-    remoteEvent.Name = "FEParticleTest"
-
-    remoteEvent.OnServerEvent:Connect(function(player, action, particleData)
-        if action == "AddFireEffect" then
-            for _, p in pairs(Players:GetPlayers()) do
-                local char = p.Character
-                if char then
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    if hrp then
-                        -- Удаляем старые эффекты
-                        for _, child in pairs(hrp:GetChildren()) do
-                            if child:IsA("ParticleEmitter") then
-                                child:Destroy()
-                            end
-                        end
-                        -- Добавляем новый эффект
-                        local particleEmitter = Instance.new("ParticleEmitter")
-                        particleEmitter.Texture = particleData.Texture
-                        particleEmitter.Size = particleData.Size
-                        particleEmitter.Transparency = particleData.Transparency
-                        particleEmitter.Lifetime = particleData.Lifetime
-                        particleEmitter.Rate = particleData.Rate
-                        particleEmitter.Speed = particleData.Speed
-                        particleEmitter.SpreadAngle = particleData.SpreadAngle
-                        particleEmitter.Color = particleData.Color
-                        particleEmitter.Parent = hrp
-                    end
-                end
-            end
-        end
-    end)
-end
