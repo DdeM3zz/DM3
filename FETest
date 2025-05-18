@@ -6,7 +6,7 @@ local StarterGui = game:GetService("StarterGui")
 local function showNotification(message, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Test",
+            Title = "Server Test",
             Text = message,
             Duration = duration or 2
         })
@@ -25,14 +25,14 @@ end
 
 if not remoteEvent then
     remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "TestEvent"
+    remoteEvent.Name = "ServerTestEvent"
     remoteEvent.Parent = ReplicatedStorage
-    showNotification("Создан новый RemoteEvent: TestEvent")
+    showNotification("Создан новый RemoteEvent: ServerTestEvent")
 end
 
 -- Функция для теста
 local function runTest()
-    showNotification("Запуск теста...")
+    showNotification("Запуск теста сервера...")
     local success, errorMsg = pcall(function()
         remoteEvent:FireServer("TestAction")
     end)
@@ -55,13 +55,12 @@ end)
 -- Серверная часть
 if game:GetService("RunService"):IsServer() then
     local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
-    remoteEvent.Name = "TestEvent"
+    remoteEvent.Name = "ServerTestEvent"
 
     remoteEvent.OnServerEvent:Connect(function(player, action)
         if action == "TestAction" then
             local success, errorMsg = pcall(function()
-                print("Сервер получил запрос от: " .. player.Name)
-                showNotification("Сервер работает!", 5)
+                showNotification("Сервер работает! Проверка прошла!", 5)
             end)
             if not success then
                 warn("Ошибка на сервере: " .. tostring(errorMsg))
