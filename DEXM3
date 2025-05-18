@@ -1,0 +1,186 @@
+-- Клиентская часть (вставляется в Swift SS или другой экзекутор)
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+
+-- Уведомление
+local function showNotification(message, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Custom Dex Explorer",
+            Text = message,
+            Duration = duration or 2
+        })
+    end)
+end
+
+-- Создаём GUI для Dex Explorer
+local function createDexExplorer()
+    -- Проверяем, не открыт ли уже Dex Explorer
+    if CoreGui:FindFirstChild("CustomDexExplorer") then
+        CoreGui.CustomDexExplorer:Destroy()
+    end
+
+    -- Создаём ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "CustomDexExplorer"
+    screenGui.Parent = CoreGui
+    screenGui.ResetOnSpawn = false
+
+    -- Основной фрейм
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 350, 0, 450)
+    mainFrame.Position = UDim2.new(0, 50, 0, 50)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+
+    -- Заголовок
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 30)
+    titleLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    titleLabel.Text = "Custom Dex Explorer"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 18
+    titleLabel.Parent = mainFrame
+
+    -- Кнопка закрытия
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -30, 0, 0)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 14
+    closeButton.Parent = mainFrame
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy()
+    end)
+
+    -- Поле для поиска
+    local searchBox = Instance.new("TextBox")
+    searchBox.Size = UDim2.new(1, -10, 0, 30)
+    searchBox.Position = UDim2.new(0, 5, 0, 35)
+    searchBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    searchBox.Text = "Поиск (например, FallingDuck)"
+    searchBox.TextColor3 = Color3.fromRGB(200, 200, 200)
+    searchBox.TextSize = 14
+    searchBox.Parent = mainFrame
+
+    -- Фрейм для списка объектов
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -10, 1, -75)
+    scrollFrame.Position = UDim2.new(0, 5, 0, 70)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.ScrollBarThickness = 5
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scrollFrame.Parent = mainFrame
+
+    -- Список для хранения кнопок
+    local items = {}
+
+    -- Функция для отображения иерархии
+    local function displayHierarchy(parent, frame, depth)
+        depth = depth or 0
+        for _, child in pairs(parent:GetChildren()) do
+            local itemLabel = Instance.new("TextButton")
+            itemLabel.Size = UDim2.new(1, 0, 0, 20)
+            itemLabel.Position = UDim2.new(0, depth * 10, 0, #items * 20)
+            itemLabel.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+            itemLabel.Text = string.rep("  ", depth) .. child.Name .. " [" .. child.ClassName .. "]"
+            itemLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            itemLabel.TextSize = 14
+            itemLabel.TextXAlignment = Enum.TextXAlignment.Left
+            itemLabel.Parent = frame
+            table.insert(items, itemLabel)
+
+            -- При нажатии показываем свойства
+            itemLabel.MouseButton1Click:Connect(function()
+                showNotification("Объект: " .. child.Name .. " | Класс: " .. child.ClassName)
+                if child:IsA("Part") then
+                    local mesh = child:FindFirstChildOfClass("SpecialMesh")
+                    if mesh then
+                        showNotification("MeshId: " .. (mesh.MeshId or "Нет") .. " | TextureId: " .. (mesh.TextureId or "Нет"))
+                    end
+                    showNotification("Transparency: " .. child.Transparency .. " | Position: " .. tostring(child.Position))
+                end
+            end)
+
+            -- Рекурсивно отображаем дочерние элементы
+            displayHierarchy(child, frame, depth + 1)
+        end
+        frame.CanvasSize = UDim2.new(0, 0, 0, #items * 20)
+    end
+
+    -- Функция для обновления списка с учётом поиска
+    local function updateList(searchText)
+        for _, item in pairs(items) do
+            item:Destroy()
+        end
+        items = {}
+        if searchText == "" or searchText == "Поиск (например, FallingDuck)" then
+            displayHierarchy(game, scrollFrame)
+        else
+            local function searchHierarchy(parent, frame, depth)
+                depth = depth or 0
+                for _, child in pairs(parent:GetChildren()) do
+                    if string.find(string.lower(child.Name), string.lower(searchText)) then
+                        local itemLabel = Instance.new("TextButton")
+                        itemLabel.Size = UDim2.new(1, 0, 0, 20)
+                        itemLabel.Position = UDim2.new(0, depth * 10, 0, #items * 20)
+                        itemLabel.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+                        itemLabel.Text = string.rep("  ", depth) .. child.Name .. " [" .. child.ClassName .. "]"
+                        itemLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        itemLabel.TextSize = 14
+                        itemLabel.TextXAlignment = Enum.TextXAlignment.Left
+                        itemLabel.Parent = frame
+                        table.insert(items, itemLabel)
+
+                        itemLabel.MouseButton1Click:Connect(function()
+                            showNotification("Объект: " .. child.Name .. " | Класс: " .. child.ClassName)
+                            if child:IsA("Part") then
+                                local mesh = child:FindFirstChildOfClass("SpecialMesh")
+                                if mesh then
+                                    showNotification("MeshId: " .. (mesh.MeshId or "Нет") .. " | TextureId: " .. (mesh.TextureId or "Нет"))
+                                end
+                                showNotification("Transparency: " .. child.Transparency .. " | Position: " .. tostring(child.Position))
+                            end
+                        end)
+                    end
+                    searchHierarchy(child, frame, depth + 1)
+                end
+            end
+            searchHierarchy(game, scrollFrame)
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #items * 20)
+        end
+    end
+
+    -- Изначально отображаем иерархию
+    updateList("")
+
+    -- Обновляем список при вводе текста в поиск
+    searchBox.FocusLost:Connect(function()
+        updateList(searchBox.Text)
+    end)
+
+    showNotification("Dex Explorer открыт! Нажми E, чтобы открыть/закрыть. Ищи уток в Workspace.")
+end
+
+-- Запуск при нажатии клавиши (например, E)
+local dexOpen = false
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.E then
+        if not dexOpen then
+            createDexExplorer()
+            dexOpen = true
+        else
+            if CoreGui:FindFirstChild("CustomDexExplorer") then
+                CoreGui.CustomDexExplorer:Destroy()
+            end
+            dexOpen = false
+        end
+    end
+end)
+
+showNotification("Нажми E, чтобы открыть Dex Explorer!")
