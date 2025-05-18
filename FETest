@@ -1,120 +1,72 @@
-local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
+-- Клиентская часть (вставляется в экзекутор, например Xeno)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
+local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Настройки неба (кастомный Skybox)
-local skySettings = {
-    SkyboxBk = "rbxassetid://216453274", -- Пример текстур для Skybox
-    SkyboxFt = "rbxassetid://216453274",
-    SkyboxLf = "rbxassetid://216453274",
-    SkyboxRt = "rbxassetid://216453274",
-    SkyboxUp = "rbxassetid://216453274",
-    SkyboxDn = "rbxassetid://216453274",
-    TimeOfDay = "00:00:00" -- Ночь
-}
-
--- Поиск любого RemoteEvent в ReplicatedStorage
-local function findRemoteEvent()
-    for _, obj in pairs(ReplicatedStorage:GetChildren()) do
-        if obj:IsA("RemoteEvent") then
-            return obj
-        end
-    end
-    return nil
+-- Проверяем или создаём RemoteEvent
+local remoteEvent = ReplicatedStorage:FindFirstChild("AddParticleEffect")
+if not remoteEvent then
+    remoteEvent = Instance.new("RemoteEvent")
+    remoteEvent.Name = "AddParticleEffect"
+    remoteEvent.Parent = ReplicatedStorage
 end
 
--- Применение изменений неба
-local function applySkyChanges()
-    -- Удаляем старый Sky, если он есть
-    for _, sky in pairs(Lighting:GetChildren()) do
-        if sky:IsA("Sky") then
-            sky:Destroy()
-        end
-    end
-
-    -- Создаём новый Sky
-    local sky = Instance.new("Sky")
-    sky.Parent = Lighting
-    sky.SkyboxBk = skySettings.SkyboxBk
-    sky.SkyboxFt = skySettings.SkyboxFt
-    sky.SkyboxLf = skySettings.SkyboxLf
-    sky.SkyboxRt = skySettings.SkyboxRt
-    sky.SkyboxUp = skySettings.SkyboxUp
-    sky.SkyboxDn = skySettings.SkyboxDn
-
-    -- Меняем время суток
-    Lighting.TimeOfDay = skySettings.TimeOfDay
-    Lighting.Brightness = 0.5 -- Приглушённое освещение для ночного эффекта
+-- Функция для отправки запроса на добавление эффекта
+local function addFireParticles()
+    remoteEvent:FireServer("AddFireEffect", {
+        Texture = "rbxassetid://243098098", -- Текстура огня
+        Size = NumberSequence.new(1, 0),
+        Transparency = NumberSequence.new(0, 1),
+        Lifetime = NumberRange.new(0.5, 1),
+        Rate = 50,
+        Speed = NumberRange.new(5, 10),
+        SpreadAngle = Vector2.new(-30, 30),
+        Color = ColorSequence.new(Color3.fromRGB(255, 147, 41), Color3.fromRGB(255, 0, 0))
+    })
 end
 
--- GUI
-local screenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
-screenGui.Name = "SkyControlGui"
-screenGui.ResetOnSpawn = false
+-- Вызываем добавление частиц
+addFireParticles()
 
-local mainFrame = Instance.new("Frame", screenGui)
-mainFrame.Size = UDim2.new(0, 300, 0, 100)
-mainFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.Active = true
-mainFrame.Draggable = true
-
-local frameCorner = Instance.new("UICorner", mainFrame)
-frameCorner.CornerRadius = UDim.new(0, 12)
-
-local uiListLayout = Instance.new("UIListLayout", mainFrame)
-uiListLayout.FillDirection = Enum.FillDirection.Vertical
-uiListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-uiListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-uiListLayout.Padding = UDim.new(0, 5)
-
-local function createModeButton(modeName, color)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 250, 0, 40)
-    btn.BackgroundColor3 = color
-    btn.Text = modeName
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 18
-    btn.TextColor3 = Color3.new(1, 1, 1)
-
-    local corner = Instance.new("UICorner", btn)
-    corner.CornerRadius = UDim.new(0, 8)
-
-    btn.Name = modeName
-    return btn
-end
-
-local changeSkyBtn = createModeButton("Change Sky", Color3.fromRGB(50, 150, 50))
-local unloadBtn = createModeButton("Unload Script", Color3.fromRGB(255, 50, 50))
-changeSkyBtn.Parent = mainFrame
-unloadBtn.Parent = mainFrame
-
--- Логика GUI
-local isSkyChanged = false
-
-local function updateButtons()
-    changeSkyBtn.BackgroundColor3 = isSkyChanged and Color3.fromRGB(100, 200, 100) or Color3.fromRGB(50, 150, 50)
-end
-
-changeSkyBtn.MouseButton1Click:Connect(function()
-    if not isSkyChanged then
-        applySkyChanges()
-        local remote = findRemoteEvent()
-        if remote then
-            remote:FireServer("ChangeSky", skySettings, LocalPlayer)
-            print("Сигнал отправлен через RemoteEvent: " .. remote.Name .. " для смены неба.")
-        else
-            warn("RemoteEvent не найден в ReplicatedStorage.")
-        end
-        isSkyChanged = true
-        updateButtons()
+-- Автоматически для новых игроков (опционально)
+game:GetService("Players").PlayerAdded:Connect(function(player)
+    if player == LocalPlayer then
+        addFireParticles()
     end
 end)
 
-unloadBtn.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-end)
+-- Серверная часть (для полноты, обычно в ServerScriptService)
+if game:GetService("RunService"):IsServer() then
+    local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
+    remoteEvent.Name = "AddParticleEffect"
 
-updateButtons()
+    remoteEvent.OnServerEvent:Connect(function(player, action, particleData)
+        if action == "AddFireEffect" then
+            for _, p in pairs(Players:GetPlayers()) do
+                local char = p.Character
+                if char then
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    if hrp then
+                        -- Удаляем старые эффекты, чтобы избежать дублирования
+                        for _, child in pairs(hrp:GetChildren()) do
+                            if child:IsA("ParticleEmitter") then
+                                child:Destroy()
+                            end
+                        end
+                        -- Создаём новый эффект
+                        local particleEmitter = Instance.new("ParticleEmitter")
+                        particleEmitter.Texture = particleData.Texture
+                        particleEmitter.Size = particleData.Size
+                        particleEmitter.Transparency = particleData.Transparency
+                        particleEmitter.Lifetime = particleData.Lifetime
+                        particleEmitter.Rate = particleData.Rate
+                        particleEmitter.Speed = particleData.Speed
+                        particleEmitter.SpreadAngle = particleData.SpreadAngle
+                        particleEmitter.Color = particleData.Color
+                        particleEmitter.Parent = hrp
+                    end
+                end
+            end
+        end
+    end)
+end
