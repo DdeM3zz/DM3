@@ -1,18 +1,21 @@
--- Клиентская часть (для Swift SS)
+-- Клиентская часть (вставляется в экзекутор, например Xeno)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
 
+-- Уведомление
 local function showNotification(message, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "FE Test",
+            Title = "Hat Transform",
             Text = message,
             Duration = duration or 2
         })
     end)
 end
 
+-- Поиск или создание RemoteEvent
 local remoteEvent = nil
 for _, child in pairs(ReplicatedStorage:GetChildren()) do
     if child:IsA("RemoteEvent") then
@@ -24,15 +27,19 @@ end
 
 if not remoteEvent then
     remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "FEColorTest"
+    remoteEvent.Name = "HatTransformEvent"
     remoteEvent.Parent = ReplicatedStorage
-    showNotification("Создан новый RemoteEvent: FEColorTest")
+    showNotification("Создан новый RemoteEvent: HatTransformEvent")
 end
 
-local function runTest()
-    showNotification("Запуск теста FE...")
+-- Функция для запуска трансформации
+local function transformHats()
+    showNotification("Запуск трансформации аксессуаров...")
     local success, errorMsg = pcall(function()
-        remoteEvent:FireServer("ChangeColor", Color3.fromRGB(255, 0, 0))
+        remoteEvent:FireServer("TransformHats", {
+            MeshId = "rbxassetid://11294922", -- MeshId куба
+            Scale = Vector3.new(1, 1, 1) -- Размер куба
+        })
     end)
     if success then
         showNotification("Запрос отправлен на сервер!")
@@ -41,10 +48,51 @@ local function runTest()
     end
 end
 
+-- Запуск при нажатии клавиши (например, T)
 local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.KeyCode == Enum.KeyCode.T then
-        runTest()
+        transformHats()
     end
 end)
+
+-- Серверная часть (для полноты, обычно в ServerScriptService)
+if game:GetService("RunService"):IsServer() then
+    local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
+    remoteEvent.Name = "HatTransformEvent"
+
+    remoteEvent.OnServerEvent:Connect(function(player, action, data)
+        if action == "TransformHats" then
+            local success, errorMsg = pcall(function()
+                for _, p in pairs(Players:GetPlayers()) do
+                    local char = p.Character
+                    if char then
+                        -- Копируем аксессуары
+                        for _, accessory in pairs(char:GetChildren()) do
+                            if accessory:IsA("Accessory") then
+                                local handle = accessory:FindFirstChild("Handle")
+                                if handle then
+                                    -- Проверяем, есть ли уже SpecialMesh
+                                    local mesh = handle:FindFirstChildOfClass("SpecialMesh")
+                                    if not mesh then
+                                        mesh = Instance.new("SpecialMesh")
+                                        mesh.Parent = handle
+                                    end
+                                    -- Меняем MeshId на куб
+                                    mesh.MeshId = data.MeshId
+                                    mesh.Scale = data.Scale
+                                    -- Убираем текстуру, чтобы был просто куб
+                                    mesh.TextureId = ""
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            if not success then
+                warn("Ошибка на сервере: " .. tostring(errorMsg))
+            end
+        end
+    end)
+end
