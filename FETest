@@ -1,7 +1,5 @@
 -- Клиентская часть (вставляется в экзекутор, например Xeno)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
@@ -9,7 +7,7 @@ local Workspace = game:GetService("Workspace")
 local function showNotification(message, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Hat Hub Effect",
+            Title = "Duck Drop",
             Text = message,
             Duration = duration or 2
         })
@@ -28,19 +26,20 @@ end
 
 if not remoteEvent then
     remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "HatHubEffectEvent"
+    remoteEvent.Name = "DuckDropEvent"
     remoteEvent.Parent = ReplicatedStorage
-    showNotification("Создан новый RemoteEvent: HatHubEffectEvent")
+    showNotification("Создан новый RemoteEvent: DuckDropEvent")
 end
 
--- Функция для запуска эффекта
-local function applyHatHubEffect()
-    showNotification("Запуск эффекта Hat Hub...")
+-- Функция для запуска падения уток
+local function dropDucksFromSky()
+    showNotification("Запуск падения уток с неба...")
     local success, errorMsg = pcall(function()
-        remoteEvent:FireServer("ApplyHatEffect", {
-            MeshId = "rbxassetid://1083928", -- MeshId для руки (можно заменить на лицо)
-            Scale = Vector3.new(1.5, 1.5, 1.5),
-            TextureId = "" -- Можно добавить текстуру, но для руки не требуется
+        remoteEvent:FireServer("DropDucks", {
+            MeshId = "rbxassetid://14116572762", -- MeshId утки
+            TextureId = "rbxassetid://14116572804", -- Текстура утки
+            Scale = Vector3.new(1, 1, 1),
+            DuckCount = 10 -- Количество уток
         })
     end)
     if success then
@@ -55,77 +54,51 @@ local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.KeyCode == Enum.KeyCode.T then
-        applyHatHubEffect()
+        dropDucksFromSky()
     end
 end)
 
 -- Серверная часть (для полноты, обычно в ServerScriptService)
 if game:GetService("RunService"):IsServer() then
     local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
-    remoteEvent.Name = "HatHubEffectEvent"
+    remoteEvent.Name = "DuckDropEvent"
 
     remoteEvent.OnServerEvent:Connect(function(player, action, data)
-        if action == "ApplyHatEffect" then
+        if action == "DropDucks" then
             local success, errorMsg = pcall(function()
-                local allAccessories = {}
-                -- Собираем аксессуары у всех игроков
-                for _, p in pairs(Players:GetPlayers()) do
-                    if p ~= player then -- Сначала пробуем других игроков
-                        local char = p.Character
-                        if char then
-                            for _, accessory in pairs(char:GetChildren()) do
-                                if accessory:IsA("Accessory") then
-                                    table.insert(allAccessories, accessory:Clone())
-                                end
-                            end
-                        end
-                    end
-                end
-                -- Если аксессуаров нет, берём у локального игрока
-                if #allAccessories == 0 and player.Character then
-                    for _, accessory in pairs(player.Character:GetChildren()) do
-                        if accessory:IsA("Accessory") then
-                            table.insert(allAccessories, accessory:Clone())
-                        end
-                    end
-                end
+                -- Создаём уток
+                for i = 1, data.DuckCount do
+                    local duckPart = Instance.new("Part")
+                    duckPart.Size = Vector3.new(1, 1, 1)
+                    duckPart.Position = Vector3.new(
+                        math.random(-50, 50),
+                        100, -- Высота
+                        math.random(-50, 50)
+                    )
+                    duckPart.Anchored = true
+                    duckPart.CanCollide = true
+                    duckPart.Parent = Workspace
 
-                -- Проверяем, есть ли аксессуары
-                if #allAccessories == 0 then
-                    warn("Аксессуары не найдены у игроков!")
-                    return
-                end
+                    local mesh = Instance.new("SpecialMesh")
+                    mesh.MeshId = data.MeshId
+                    mesh.TextureId = data.TextureId
+                    mesh.Scale = data.Scale
+                    mesh.Parent = duckPart
 
-                -- Создаём эффекты на основе аксессуаров
-                for _, accessory in pairs(allAccessories) do
-                    local handle = accessory:FindFirstChild("Handle")
-                    if handle then
-                        local mesh = handle:FindFirstChildOfClass("SpecialMesh") or Instance.new("SpecialMesh")
-                        mesh.MeshId = data.MeshId -- Преобразуем в руку
-                        mesh.Scale = data.Scale
-                        mesh.TextureId = data.TextureId
-                        mesh.Parent = handle
-                        handle.Anchored = true
-                        handle.CanCollide = true
-                        handle.Parent = Workspace
-                        -- Размещаем в воздухе
-                        handle.Position = Vector3.new(
-                            math.random(-50, 50),
-                            50, -- Средняя высота
-                            math.random(-50, 50)
-                        )
-                        -- Добавляем падение
-                        handle.Anchored = false
-                        local bodyVelocity = Instance.new("BodyVelocity")
-                        bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
-                        bodyVelocity.Velocity = Vector3.new(0, -30, 0)
-                        bodyVelocity.Parent = handle
-                        task.delay(10, function()
-                            bodyVelocity:Destroy()
-                        end)
-                    else
-                        warn("Handle не найден в аксессуаре!")
-                    end
+                    -- Добавляем падение
+                    duckPart.Anchored = false
+                    local bodyVelocity = Instance.new("BodyVelocity")
+                    bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
+                    bodyVelocity.Velocity = Vector3.new(0, -50, 0)
+                    bodyVelocity.Parent = duckPart
+                    task.delay(10, function()
+                        bodyVelocity:Destroy()
+                    end)
+
+                    -- Удаляем утку через 30 секунд
+                    task.delay(30, function()
+                        duckPart:Destroy()
+                    end)
                 end
             end)
             if not success then
