@@ -1,7 +1,8 @@
 -- Клиентская часть (вставляется в экзекутор, например Xeno)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
-local Workspace = game:GetService("Workspace")
 
 -- Уведомление
 local function showNotification(message, duration)
@@ -39,7 +40,7 @@ local function dropDucksFromSky()
             MeshId = "rbxassetid://14116572762", -- MeshId утки
             TextureId = "rbxassetid://14116572804", -- Текстура утки
             Scale = Vector3.new(1, 1, 1),
-            DuckCount = 10 -- Количество уток
+            DuckCount = 5 -- Количество уток на игрока
         })
     end)
     if success then
@@ -66,39 +67,56 @@ if game:GetService("RunService"):IsServer() then
     remoteEvent.OnServerEvent:Connect(function(player, action, data)
         if action == "DropDucks" then
             local success, errorMsg = pcall(function()
-                -- Создаём уток
-                for i = 1, data.DuckCount do
-                    local duckPart = Instance.new("Part")
-                    duckPart.Size = Vector3.new(1, 1, 1)
-                    duckPart.Position = Vector3.new(
-                        math.random(-50, 50),
-                        100, -- Высота
-                        math.random(-50, 50)
-                    )
-                    duckPart.Anchored = true
-                    duckPart.CanCollide = true
-                    duckPart.Parent = Workspace
+                for _, p in pairs(Players:GetPlayers()) do
+                    local char = p.Character
+                    if char then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            -- Создаём уток для каждого игрока
+                            for i = 1, data.DuckCount do
+                                local duckPart = Instance.new("Part")
+                                duckPart.Size = Vector3.new(1, 1, 1)
+                                duckPart.Position = hrp.Position + Vector3.new(
+                                    math.random(-10, 10),
+                                    50, -- Высота над игроком
+                                    math.random(-10, 10)
+                                )
+                                duckPart.Anchored = true
+                                duckPart.CanCollide = true
 
-                    local mesh = Instance.new("SpecialMesh")
-                    mesh.MeshId = data.MeshId
-                    mesh.TextureId = data.TextureId
-                    mesh.Scale = data.Scale
-                    mesh.Parent = duckPart
+                                local mesh = Instance.new("SpecialMesh")
+                                mesh.MeshId = data.MeshId
+                                mesh.TextureId = data.TextureId
+                                mesh.Scale = data.Scale
+                                mesh.Parent = duckPart
 
-                    -- Добавляем падение
-                    duckPart.Anchored = false
-                    local bodyVelocity = Instance.new("BodyVelocity")
-                    bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
-                    bodyVelocity.Velocity = Vector3.new(0, -50, 0)
-                    bodyVelocity.Parent = duckPart
-                    task.delay(10, function()
-                        bodyVelocity:Destroy()
-                    end)
+                                -- Прикрепляем временно как "аксессуар"
+                                local weld = Instance.new("WeldConstraint")
+                                weld.Part0 = hrp
+                                weld.Part1 = duckPart
+                                weld.Parent = duckPart
 
-                    -- Удаляем утку через 30 секунд
-                    task.delay(30, function()
-                        duckPart:Destroy()
-                    end)
+                                duckPart.Parent = char
+
+                                -- Открепляем и заставляем падать
+                                task.delay(1, function()
+                                    weld:Destroy()
+                                    duckPart.Anchored = false
+                                    local bodyVelocity = Instance.new("BodyVelocity")
+                                    bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
+                                    bodyVelocity.Velocity = Vector3.new(0, -30, 0)
+                                    bodyVelocity.Parent = duckPart
+                                    task.delay(10, function()
+                                        bodyVelocity:Destroy()
+                                    end)
+                                    -- Удаляем утку через 30 секунд
+                                    task.delay(30, function()
+                                        duckPart:Destroy()
+                                    end)
+                                end)
+                            end
+                        end
+                    end
                 end
             end)
             if not success then
