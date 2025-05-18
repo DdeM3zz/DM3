@@ -3,12 +3,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
+local Workspace = game:GetService("Workspace")
 
 -- Уведомление
 local function showNotification(message, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Hat Transform",
+            Title = "Hat Sky Drop",
             Text = message,
             Duration = duration or 2
         })
@@ -27,18 +28,19 @@ end
 
 if not remoteEvent then
     remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "HatTransformEvent"
+    remoteEvent.Name = "HatSkyDropEvent"
     remoteEvent.Parent = ReplicatedStorage
-    showNotification("Создан новый RemoteEvent: HatTransformEvent")
+    showNotification("Создан новый RemoteEvent: HatSkyDropEvent")
 end
 
 -- Функция для запуска трансформации
-local function transformHats()
-    showNotification("Запуск трансформации аксессуаров...")
+local function dropHatsFromSky()
+    showNotification("Запуск падения аксессуаров с неба...")
     local success, errorMsg = pcall(function()
-        remoteEvent:FireServer("TransformHats", {
-            MeshId = "rbxassetid://11294922", -- MeshId куба
-            Scale = Vector3.new(1, 1, 1) -- Размер куба
+        remoteEvent:FireServer("DropHats", {
+            MeshId = "rbxassetid://14116572762", -- MeshId куба
+            TextureId = "rbxassetid://14116572804", -- Текстура куба
+            Scale = Vector3.new(1, 1, 1)
         })
     end)
     if success then
@@ -53,40 +55,61 @@ local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.KeyCode == Enum.KeyCode.T then
-        transformHats()
+        dropHatsFromSky()
     end
 end)
 
 -- Серверная часть (для полноты, обычно в ServerScriptService)
 if game:GetService("RunService"):IsServer() then
     local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
-    remoteEvent.Name = "HatTransformEvent"
+    remoteEvent.Name = "HatSkyDropEvent"
 
     remoteEvent.OnServerEvent:Connect(function(player, action, data)
-        if action == "TransformHats" then
+        if action == "DropHats" then
             local success, errorMsg = pcall(function()
+                local allAccessories = {}
+                -- Собираем аксессуары у всех игроков
                 for _, p in pairs(Players:GetPlayers()) do
                     local char = p.Character
                     if char then
-                        -- Копируем аксессуары
                         for _, accessory in pairs(char:GetChildren()) do
                             if accessory:IsA("Accessory") then
-                                local handle = accessory:FindFirstChild("Handle")
-                                if handle then
-                                    -- Проверяем, есть ли уже SpecialMesh
-                                    local mesh = handle:FindFirstChildOfClass("SpecialMesh")
-                                    if not mesh then
-                                        mesh = Instance.new("SpecialMesh")
-                                        mesh.Parent = handle
-                                    end
-                                    -- Меняем MeshId на куб
-                                    mesh.MeshId = data.MeshId
-                                    mesh.Scale = data.Scale
-                                    -- Убираем текстуру, чтобы был просто куб
-                                    mesh.TextureId = ""
-                                end
+                                table.insert(allAccessories, accessory:Clone())
                             end
                         end
+                    end
+                end
+                -- Если аксессуаров нет, берём у локального игрока
+                if #allAccessories == 0 and player.Character then
+                    for _, accessory in pairs(player.Character:GetChildren()) do
+                        if accessory:IsA("Accessory") then
+                            table.insert(allAccessories, accessory:Clone())
+                        end
+                    end
+                end
+
+                -- Создаём и падающие аксессуары-кубы
+                for _, accessory in pairs(allAccessories) do
+                    local handle = accessory:FindFirstChild("Handle")
+                    if handle then
+                        local mesh = handle:FindFirstChildOfClass("SpecialMesh") or Instance.new("SpecialMesh")
+                        mesh.MeshId = data.MeshId
+                        mesh.TextureId = data.TextureId
+                        mesh.Scale = data.Scale
+                        mesh.Parent = handle
+                        handle.Anchored = false
+                        handle.CanCollide = true
+                        -- Размещаем в небе
+                        handle.Position = Vector3.new(
+                            math.random(-50, 50),
+                            100, -- Высота неба
+                            math.random(-50, 50)
+                        )
+                        handle.Parent = Workspace
+                        -- Добавляем силу тяжести
+                        local bodyForce = Instance.new("BodyForce")
+                        bodyForce.Force = Vector3.new(0, handle:GetMass() * Workspace.Gravity * 5, 0)
+                        bodyForce.Parent = handle
                     end
                 end
             end)
