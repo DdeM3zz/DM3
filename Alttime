@@ -1,0 +1,167 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+
+-- Настройки
+local recording = {}
+local isRewinding = false
+local maxRecordTime = 5
+local recordInterval = 0.1
+local rewindSpeedMultiplier = 2
+local minSpeed = 0.1
+local maxSpeed = 10
+
+local character, humanoid, hrp
+
+-- Уведомление
+local function showBadge(message, duration)
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "⏳ Time Control",
+			Text = message,
+			Duration = duration or 2
+		})
+	end)
+end
+
+-- Проверка земли (raycast)
+local function adjustToGround(cframe)
+	local origin = cframe.Position + Vector3.new(0, 2, 0)
+	local direction = Vector3.new(0, -10, 0)
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = {character}
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+
+	local result = Workspace:Raycast(origin, direction, params)
+	if result then
+		local y = math.max(cframe.Position.Y, result.Position.Y + 2)
+		return CFrame.new(Vector3.new(cframe.Position.X, y, cframe.Position.Z)) * cframe.Rotation
+	end
+
+	return cframe
+end
+
+-- Запись позиции
+local function recordLoop()
+	while true do
+		if character and hrp and humanoid and humanoid.Health > 0 and not isRewinding then
+			if #recording >= maxRecordTime / recordInterval then
+				table.remove(recording, 1)
+			end
+
+			table.insert(recording, {
+				cframe = hrp.CFrame,
+			})
+		end
+		task.wait(recordInterval)
+	end
+end
+
+-- Перемотка назад
+local function startRewind()
+	if isRewinding or not humanoid or humanoid.Health <= 0 then return end
+	if #recording < 2 then return end
+
+	isRewinding = true
+	showBadge("⏪ Перемотка...")
+
+	for _, part in character:GetDescendants() do
+		if part:IsA("BasePart") then
+			part.Anchored = true
+		end
+	end
+
+	for _, anim in humanoid:GetPlayingAnimationTracks() do
+		anim:Stop()
+	end
+
+	task.spawn(function()
+		while isRewinding and #recording > 1 do
+			local state1 = table.remove(recording, #recording)
+			local state2 = recording[#recording]
+
+			local startCF = adjustToGround(state1.cframe)
+			local endCF = adjustToGround(state2.cframe)
+			local duration = recordInterval / rewindSpeedMultiplier
+			local t = 0
+
+			while t < duration and isRewinding do
+				local alpha = t / duration
+				local currentCF = startCF:Lerp(endCF, alpha)
+				character:SetPrimaryPartCFrame(currentCF)
+				t += RunService.RenderStepped:Wait()
+			end
+
+			character:SetPrimaryPartCFrame(endCF)
+		end
+
+		stopRewind()
+	end)
+end
+
+-- Остановка перемотки
+function stopRewind()
+	if not isRewinding then return end
+	isRewinding = false
+	showBadge("✅ Перемотка завершена")
+
+	if character then
+		for _, part in character:GetDescendants() do
+			if part:IsA("BasePart") then
+				part.Anchored = false
+			end
+		end
+	end
+end
+
+-- Инициализация персонажа
+local function onCharacterAdded(char)
+	character = char
+	humanoid = char:WaitForChild("Humanoid")
+	hrp = char:WaitForChild("HumanoidRootPart")
+
+	if not character.PrimaryPart then
+		character.PrimaryPart = hrp
+	end
+
+	recording = {}
+	stopRewind()
+
+	humanoid.Died:Connect(function()
+		recording = {}
+		stopRewind()
+	end)
+end
+
+onCharacterAdded(player.Character or player.CharacterAdded:Wait())
+player.CharacterAdded:Connect(onCharacterAdded)
+
+-- Управление
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed then return end
+
+	if input.KeyCode == Enum.KeyCode.T then
+		startRewind()
+
+	elseif input.KeyCode == Enum.KeyCode.Equals or input.KeyCode == Enum.KeyCode.KeypadPlus then
+		rewindSpeedMultiplier = math.clamp(rewindSpeedMultiplier + 0.1, minSpeed, maxSpeed)
+		showBadge("Скорость: x" .. string.format("%.1f", rewindSpeedMultiplier))
+
+	elseif input.KeyCode == Enum.KeyCode.Minus or input.KeyCode == Enum.KeyCode.KeypadMinus then
+		rewindSpeedMultiplier = math.clamp(rewindSpeedMultiplier - 0.1, minSpeed, maxSpeed)
+		showBadge("Скорость: x" .. string.format("%.1f", rewindSpeedMultiplier))
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.T then
+		stopRewind()
+	end
+end)
+
+-- Запуск записи
+task.spawn(recordLoop)
