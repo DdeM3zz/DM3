@@ -1,18 +1,22 @@
--- Клиентская часть
+-- Клиентская часть (вставляется в экзекутор, например Xeno)
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
+-- Уведомление
 local function showNotification(message, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Hat Sky Drop",
+            Title = "Hat Hub Effect",
             Text = message,
             Duration = duration or 2
         })
     end)
 end
 
+-- Поиск или создание RemoteEvent
 local remoteEvent = nil
 for _, child in pairs(ReplicatedStorage:GetChildren()) do
     if child:IsA("RemoteEvent") then
@@ -24,15 +28,20 @@ end
 
 if not remoteEvent then
     remoteEvent = Instance.new("RemoteEvent")
-    remoteEvent.Name = "HatSkyDropEvent"
+    remoteEvent.Name = "HatHubEffectEvent"
     remoteEvent.Parent = ReplicatedStorage
-    showNotification("Создан новый RemoteEvent: HatSkyDropEvent")
+    showNotification("Создан новый RemoteEvent: HatHubEffectEvent")
 end
 
-local function dropHatsFromSky()
-    showNotification("Запуск падения кубов с неба...")
+-- Функция для запуска эффекта
+local function applyHatHubEffect()
+    showNotification("Запуск эффекта Hat Hub...")
     local success, errorMsg = pcall(function()
-        remoteEvent:FireServer("DropCubes")
+        remoteEvent:FireServer("ApplyHatEffect", {
+            MeshId = "rbxassetid://1083928", -- MeshId для руки (можно заменить на лицо)
+            Scale = Vector3.new(1.5, 1.5, 1.5),
+            TextureId = "" -- Можно добавить текстуру, но для руки не требуется
+        })
     end)
     if success then
         showNotification("Запрос отправлен на сервер!")
@@ -41,10 +50,87 @@ local function dropHatsFromSky()
     end
 end
 
+-- Запуск при нажатии клавиши (например, T)
 local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.KeyCode == Enum.KeyCode.T then
-        dropHatsFromSky()
+        applyHatHubEffect()
     end
 end)
+
+-- Серверная часть (для полноты, обычно в ServerScriptService)
+if game:GetService("RunService"):IsServer() then
+    local remoteEvent = Instance.new("RemoteEvent", ReplicatedStorage)
+    remoteEvent.Name = "HatHubEffectEvent"
+
+    remoteEvent.OnServerEvent:Connect(function(player, action, data)
+        if action == "ApplyHatEffect" then
+            local success, errorMsg = pcall(function()
+                local allAccessories = {}
+                -- Собираем аксессуары у всех игроков
+                for _, p in pairs(Players:GetPlayers()) do
+                    if p ~= player then -- Сначала пробуем других игроков
+                        local char = p.Character
+                        if char then
+                            for _, accessory in pairs(char:GetChildren()) do
+                                if accessory:IsA("Accessory") then
+                                    table.insert(allAccessories, accessory:Clone())
+                                end
+                            end
+                        end
+                    end
+                end
+                -- Если аксессуаров нет, берём у локального игрока
+                if #allAccessories == 0 and player.Character then
+                    for _, accessory in pairs(player.Character:GetChildren()) do
+                        if accessory:IsA("Accessory") then
+                            table.insert(allAccessories, accessory:Clone())
+                        end
+                    end
+                end
+
+                -- Проверяем, есть ли аксессуары
+                if #allAccessories == 0 then
+                    warn("Аксессуары не найдены у игроков!")
+                    return
+                end
+
+                -- Создаём эффекты на основе аксессуаров
+                for _, accessory in pairs(allAccessories) do
+                    local handle = accessory:FindFirstChild("Handle")
+                    if handle then
+                        local mesh = handle:FindFirstChildOfClass("SpecialMesh") or Instance.new("SpecialMesh")
+                        mesh.MeshId = data.MeshId -- Преобразуем в руку
+                        mesh.Scale = data.Scale
+                        mesh.TextureId = data.TextureId
+                        mesh.Parent = handle
+                        handle.Anchored = true
+                        handle.CanCollide = true
+                        handle.Parent = Workspace
+                        -- Размещаем в воздухе
+                        handle.Position = Vector3.new(
+                            math.random(-50, 50),
+                            50, -- Средняя высота
+                            math.random(-50, 50)
+                        )
+                        -- Добавляем падение
+                        handle.Anchored = false
+                        local bodyVelocity = Instance.new("BodyVelocity")
+                        bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
+                        bodyVelocity.Velocity = Vector3.new(0, -30, 0)
+                        bodyVelocity.Parent = handle
+                        task.delay(10, function()
+                            bodyVelocity:Destroy()
+                        end)
+                    else
+                        warn("Handle не найден в аксессуаре!")
+                    end
+                end
+            end)
+            if not success then
+                warn("Ошибка на сервере: " .. tostring(errorMsg))
+            end
+        end
+    end)
+end
